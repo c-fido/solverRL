@@ -1,5 +1,50 @@
+# Python
 .venv/
-build/
 __pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+
+# CMake / C++ / pybind11
+build/
+cmake-build-*/
+compile_commands.json
+*.o
+*.a
+*.dylib
 *.so
+*.so.*
+*.pyd
+
+# Experiment artifacts
 data/
+checkpoints/
+models/
+runs/
+logs/
+wandb/
+*.pt
+*.pth
+*.zip
+*.csv
+!requirements.txt
+
+# Env / secrets
+.env
+.env.*
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
