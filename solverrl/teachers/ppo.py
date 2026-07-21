@@ -26,6 +26,8 @@ DEFAULT_ACTIVATION = nn.Tanh
 # Paper: early-stop when greedy exact success ≥ 0.95; train up to ~800k.
 R1_SUCCESS_THRESHOLD = 0.95
 R1_MAX_TIMESTEPS = 800_000
+# Paper R2: fixed budget so the greedy teacher stays undertrained.
+R2_TIMESTEPS = 299_008
 
 
 def make_keydoor_vec(n_envs: int = DEFAULT_N_ENVS, seed: int = 0) -> DummyVecEnv:
@@ -135,6 +137,36 @@ def train_r1(
     )
 
 
+@dataclass(frozen=True)
+class TrainR2Result:
+    save_path: Path
+    timesteps: int
+    capped: bool
+
+
+def train_r2(
+    save_path: Optional[Union[str, Path]] = None,
+    n_envs: int = DEFAULT_N_ENVS,
+    seed: int = 0,
+    total_timesteps: int = R2_TIMESTEPS,
+    device: str = "cpu",
+) -> TrainR2Result:
+    """Train PPO for a fixed budget (paper R2) and save the checkpoint."""
+    if save_path is None:
+        save_path = Path("checkpoints") / f"ppo_keydoor_r2_seed{seed}.zip"
+    save_path = Path(save_path)
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+
+    path = train_ppo(
+        total_timesteps=total_timesteps,
+        n_envs=n_envs,
+        seed=seed,
+        save_path=save_path,
+        device=device,
+    )
+    return TrainR2Result(save_path=path, timesteps=total_timesteps, capped=True)
+
+
 def train_ppo(
     total_timesteps: int,
     n_envs: int = DEFAULT_N_ENVS,
@@ -174,6 +206,12 @@ def main() -> None:
     r1.add_argument("--max-timesteps", type=int, default=R1_MAX_TIMESTEPS)
     r1.add_argument("--chunk-timesteps", type=int, default=16_384)
 
+    r2 = sub.add_parser("r2", help="R2: fixed undertrained budget (paper: 299008 steps)")
+    r2.add_argument("--n-envs", type=int, default=DEFAULT_N_ENVS)
+    r2.add_argument("--seed", type=int, default=0)
+    r2.add_argument("--save", type=str, default="checkpoints/ppo_keydoor_r2_seed0.zip")
+    r2.add_argument("--timesteps", type=int, default=R2_TIMESTEPS)
+
     args = p.parse_args()
     if args.cmd == "smoke":
         path = train_ppo(
@@ -195,6 +233,16 @@ def main() -> None:
         print(
             f"saved {result.save_path}  timesteps={result.timesteps}  "
             f"greedy_success={result.greedy_success:.4f}  early_stop={result.stopped_early}"
+        )
+    elif args.cmd == "r2":
+        result = train_r2(
+            save_path=args.save,
+            n_envs=args.n_envs,
+            seed=args.seed,
+            total_timesteps=args.timesteps,
+        )
+        print(
+            f"saved {result.save_path}  timesteps={result.timesteps}  capped={result.capped}"
         )
 
 
