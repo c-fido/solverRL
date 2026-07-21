@@ -184,6 +184,25 @@ def state_to_obs(state: State, n_states: int, index: Dict[State, int]) -> np.nda
     return obs
 
 
+# Shared across VecEnv workers so we do not re-BFS the census per env instance.
+_REACHABLE_CACHE: Optional[List[State]] = None
+_INITIALS_CACHE: Optional[List[State]] = None
+
+
+def _cached_reachable() -> List[State]:
+    global _REACHABLE_CACHE
+    if _REACHABLE_CACHE is None:
+        _REACHABLE_CACHE = enumerate_reachable(include_done=True)
+    return _REACHABLE_CACHE
+
+
+def _cached_initials() -> List[State]:
+    global _INITIALS_CACHE
+    if _INITIALS_CACHE is None:
+        _INITIALS_CACHE = initial_states()
+    return _INITIALS_CACHE
+
+
 class KeyDoorEnv(gym.Env):
     """Gymnasium KeyDoor with exact-model helpers."""
 
@@ -192,15 +211,15 @@ class KeyDoorEnv(gym.Env):
     def __init__(self, seed: Optional[int] = None):
         super().__init__()
         self.action_space = spaces.Discrete(len(ACTIONS))
-        self._reachable = enumerate_reachable(include_done=True)
+        self._reachable = _cached_reachable()
         self._index = {s: i for i, s in enumerate(self._reachable)}
         self.observation_space = spaces.Box(
             low=0.0, high=1.0, shape=(len(self._reachable),), dtype=np.float32
         )
-        self._state: State = initial_states()[0]
+        self._state: State = _cached_initials()[0]
         self._steps = 0
         self._rng = np.random.default_rng(seed)
-        self._initials = initial_states()
+        self._initials = _cached_initials()
 
     @property
     def reachable_states(self) -> Sequence[State]:
