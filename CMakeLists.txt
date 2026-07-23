@@ -33,10 +33,14 @@ target_link_libraries(test_foil PRIVATE solverrl_foil GTest::gtest_main)
 add_executable(test_prolog_emit tests/cpp/test_prolog_emit.cpp)
 target_link_libraries(test_prolog_emit PRIVATE solverrl_prolog GTest::gtest_main)
 
+add_executable(test_synthetic_vocab tests/cpp/test_synthetic_vocab.cpp)
+target_link_libraries(test_synthetic_vocab PRIVATE solverrl_vocab solverrl_prolog GTest::gtest_main)
+
 include(GoogleTest)
 gtest_discover_tests(test_vocabulary)
 gtest_discover_tests(test_foil)
 gtest_discover_tests(test_prolog_emit)
+gtest_discover_tests(test_synthetic_vocab)
 
 # ponytail: pybind11 comes from the pinned venv, not FetchContent — one source of truth for the ABI
 find_package(Python REQUIRED COMPONENTS Interpreter Development.Module)
