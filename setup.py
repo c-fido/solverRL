@@ -53,6 +53,7 @@ ext_modules = [
             "src/prolog_emit.cpp",
             "src/keydoor_ground.cpp",
             "src/rule_learner.cpp",
+            "src/exact_eval.cpp",
         ],
         include_dirs=["include", pybind11.get_include(), include_dir],
         library_dirs=library_dirs,

@@ -28,9 +28,15 @@ add_library(solverrl_keydoor_ground src/keydoor_ground.cpp)
 target_include_directories(solverrl_keydoor_ground PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(solverrl_keydoor_ground PUBLIC solverrl_vocab)
 
+add_library(solverrl_exact_eval src/exact_eval.cpp)
+target_include_directories(solverrl_exact_eval PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
 add_library(solverrl_rule_learner src/rule_learner.cpp)
 target_include_directories(solverrl_rule_learner PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(solverrl_rule_learner PUBLIC solverrl_foil solverrl_prolog solverrl_keydoor_ground)
+
+add_executable(test_exact_eval tests/cpp/test_exact_eval.cpp)
+target_link_libraries(test_exact_eval PRIVATE solverrl_exact_eval GTest::gtest_main)
 
 add_executable(test_keydoor_ground tests/cpp/test_keydoor_ground.cpp)
 target_link_libraries(test_keydoor_ground PRIVATE solverrl_keydoor_ground GTest::gtest_main)
@@ -51,6 +57,7 @@ add_executable(test_synthetic_vocab tests/cpp/test_synthetic_vocab.cpp)
 target_link_libraries(test_synthetic_vocab PRIVATE solverrl_vocab solverrl_prolog GTest::gtest_main)
 
 include(GoogleTest)
+gtest_discover_tests(test_exact_eval)
 gtest_discover_tests(test_keydoor_ground)
 gtest_discover_tests(test_rule_learner)
 gtest_discover_tests(test_vocabulary)
@@ -67,4 +74,4 @@ find_package(pybind11 REQUIRED)
 
 pybind11_add_module(solverrl_core src/core.cpp)
 target_include_directories(solverrl_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(solverrl_core PRIVATE solverrl_rule_learner solverrl_vocab)
+target_link_libraries(solverrl_core PRIVATE solverrl_rule_learner solverrl_vocab solverrl_exact_eval)

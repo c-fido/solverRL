@@ -76,6 +76,35 @@ class ExactMDP:
         v = self.exact_value(policy)
         return float(self.mu0 @ v)
 
+    def cpp_evaluator(self, horizon: int = HORIZON):
+        """C++ ExactEvaluator over this MDP (for EXPAND / certificate)."""
+        import solverrl_core
+
+        return solverrl_core.ExactEvaluator(
+            np.ascontiguousarray(self.P, dtype=np.float64),
+            np.ascontiguousarray(self.r, dtype=np.float64),
+            np.ascontiguousarray(self.mu0, dtype=np.float64),
+            float(self.gamma),
+            int(self.index[DONE]),
+            int(horizon),
+        )
+
+    def advantage_gap_cert(
+        self, student: np.ndarray, teacher: np.ndarray, horizon: int = HORIZON
+    ) -> dict:
+        """Teacher-Q advantage gap certificate on disagreeing states."""
+        evalr = self.cpp_evaluator(horizon=horizon)
+        cert = evalr.advantage_gap_cert(
+            np.asarray(student, dtype=np.int64),
+            np.asarray(teacher, dtype=np.int64),
+        )
+        return {
+            "weighted_gap": float(cert.weighted_gap),
+            "return_gap": float(cert.return_gap),
+            "n_disagree": int(cert.n_disagree),
+            "max_gap": float(cert.max_gap),
+        }
+
 
 def success_within_horizon(mdp: ExactMDP, policy: np.ndarray, horizon: int = HORIZON) -> float:
     """Probability of hitting DONE within `horizon` steps from μ0 (finite-horizon reachability)."""

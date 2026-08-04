@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <vector>
 
+#include "solverrl/exact_eval.hpp"
 #include "solverrl/keydoor_ground.hpp"
 #include "solverrl/rule_learner.hpp"
 #include "solverrl/vocabulary.hpp"
@@ -94,6 +95,74 @@ py::array ground_keydoor_states(py::array states) {
   return atoms;
 }
 
+std::vector<int> policy_from_numpy(py::array policy) {
+  if (policy.ndim() != 1) {
+    throw std::invalid_argument("policy must be 1-D (n_states,)");
+  }
+  const int n = static_cast<int>(policy.shape(0));
+  std::vector<int> out(static_cast<std::size_t>(n));
+  const auto req = policy.request();
+  if (req.format == py::format_descriptor<int64_t>::format()) {
+    const auto* p = static_cast<const int64_t*>(req.ptr);
+    for (int i = 0; i < n; ++i) {
+      out[static_cast<std::size_t>(i)] = static_cast<int>(p[i]);
+    }
+  } else if (req.format == py::format_descriptor<int32_t>::format()) {
+    const auto* p = static_cast<const int32_t*>(req.ptr);
+    for (int i = 0; i < n; ++i) {
+      out[static_cast<std::size_t>(i)] = p[i];
+    }
+  } else {
+    throw std::invalid_argument("policy must be int64 or int32");
+  }
+  return out;
+}
+
+solverrl::ExactEvaluator exact_evaluator_from_numpy(py::array transition, py::array reward,
+                                                    py::array initial, double gamma,
+                                                    int done_index, int horizon) {
+  if (transition.ndim() != 3) {
+    throw std::invalid_argument("transition must be 3-D (n_actions, n_states, n_states)");
+  }
+  if (reward.ndim() != 2) {
+    throw std::invalid_argument("reward must be 2-D (n_actions, n_states)");
+  }
+  if (initial.ndim() != 1) {
+    throw std::invalid_argument("initial must be 1-D (n_states,)");
+  }
+  const int a = static_cast<int>(transition.shape(0));
+  const int n = static_cast<int>(transition.shape(1));
+  if (static_cast<int>(transition.shape(2)) != n) {
+    throw std::invalid_argument("transition last dim must match n_states");
+  }
+  if (static_cast<int>(reward.shape(0)) != a || static_cast<int>(reward.shape(1)) != n) {
+    throw std::invalid_argument("reward shape mismatch");
+  }
+  if (static_cast<int>(initial.shape(0)) != n) {
+    throw std::invalid_argument("initial length must match n_states");
+  }
+
+  std::vector<double> P(static_cast<std::size_t>(a * n * n));
+  std::vector<double> r(static_cast<std::size_t>(a * n));
+  std::vector<double> mu0(static_cast<std::size_t>(n));
+
+  const auto p_req = transition.request();
+  const auto r_req = reward.request();
+  const auto mu_req = initial.request();
+  const auto* p_ptr = static_cast<const double*>(p_req.ptr);
+  const auto* r_ptr = static_cast<const double*>(r_req.ptr);
+  const auto* mu_ptr = static_cast<const double*>(mu_req.ptr);
+  if (p_req.strides[2] != static_cast<py::ssize_t>(sizeof(double))) {
+    throw std::invalid_argument("transition must be C-contiguous float64");
+  }
+  std::copy(p_ptr, p_ptr + P.size(), P.begin());
+  std::copy(r_ptr, r_ptr + r.size(), r.begin());
+  std::copy(mu_ptr, mu_ptr + mu0.size(), mu0.begin());
+
+  return solverrl::ExactEvaluator(n, a, std::move(P), std::move(r), std::move(mu0), gamma,
+                                  done_index, horizon);
+}
+
 }  // namespace
 
 PYBIND11_MODULE(solverrl_core, m) {
@@ -180,4 +249,35 @@ PYBIND11_MODULE(solverrl_core, m) {
       .def("to_prolog", &solverrl::RuleLearner::to_prolog)
       .def_property_readonly("is_fitted", &solverrl::RuleLearner::is_fitted)
       .def_property_readonly("n_clauses", &solverrl::RuleLearner::n_clauses);
+
+  py::class_<solverrl::AdvantageGapCert>(m, "AdvantageGapCert")
+      .def_readonly("weighted_gap", &solverrl::AdvantageGapCert::weighted_gap)
+      .def_readonly("return_gap", &solverrl::AdvantageGapCert::return_gap)
+      .def_readonly("n_disagree", &solverrl::AdvantageGapCert::n_disagree)
+      .def_readonly("max_gap", &solverrl::AdvantageGapCert::max_gap);
+
+  py::class_<solverrl::ExactEvaluator>(m, "ExactEvaluator")
+      .def(py::init(&exact_evaluator_from_numpy), py::arg("transition"), py::arg("reward"),
+           py::arg("initial"), py::arg("gamma"), py::arg("done_index"), py::arg("horizon"))
+      .def_property_readonly("n_states", &solverrl::ExactEvaluator::n_states)
+      .def_property_readonly("n_actions", &solverrl::ExactEvaluator::n_actions)
+      .def(
+          "exact_return",
+          [](const solverrl::ExactEvaluator& self, py::array policy) {
+            return self.exact_return(policy_from_numpy(policy));
+          },
+          py::arg("policy"))
+      .def(
+          "success",
+          [](const solverrl::ExactEvaluator& self, py::array policy) {
+            return self.success_probability(policy_from_numpy(policy));
+          },
+          py::arg("policy"))
+      .def(
+          "advantage_gap_cert",
+          [](const solverrl::ExactEvaluator& self, py::array student, py::array teacher) {
+            return self.advantage_gap_cert(policy_from_numpy(student),
+                                           policy_from_numpy(teacher));
+          },
+          py::arg("student"), py::arg("teacher"));
 }
