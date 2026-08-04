@@ -119,8 +119,7 @@ TEST(SyntheticVocabulary, LearnedListEmitsValidCutProgram) {
 
   EXPECT_NE(pl.find("!."), std::string::npos);
   EXPECT_NE(pl.rfind("act(_S,"), std::string::npos);
-  // Every training label still matches after learn→emit round trip at the C++ level
-  // (Prolog runtime check is a later bullet).
+  // Every training label still matches after learn → emit at the C++ level.
   for (const auto& ex : data) {
     EXPECT_EQ(learned.predict(ex), planted.predict(ex));
   }

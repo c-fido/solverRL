@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61", "pybind11>=3.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "solverrl"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+  "gymnasium>=1.2",
+  "stable-baselines3>=2.7",
+  "numpy>=2.0",
+  "matplotlib>=3.10",
+  "pybind11>=3.0",
+  "torch>=2.9",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.setuptools.packages.find]
+include = ["solverrl*"]

@@ -15,7 +15,9 @@ std::string emit_literal(const Literal& lit, const AtomSchema& schema) {
   for (const auto& arg : schema.object_args) {
     oss << ", " << arg;
   }
-  if (schema.binds_direction) {
+  if (!schema.fixed_direction.empty()) {
+    oss << ", " << schema.fixed_direction;
+  } else if (schema.binds_direction) {
     oss << ", D";
   }
   oss << ")";
@@ -25,9 +27,9 @@ std::string emit_literal(const Literal& lit, const AtomSchema& schema) {
 std::string emit_perception_layer(const EmitConfig& cfg) {
   std::ostringstream oss;
   oss << "% === perception_and_path_layer ===\n";
-  oss << "% Perception predicates are interpreted from the KeyDoor state.\n";
-  oss << "% dir_to/3 is the path-aware direction relation (tabled BFS over the grid).\n";
-  oss << "% Stubs below keep the file loadable; the runtime supplies real clauses.\n";
+  oss << "% Perception predicates are supplied at runtime from the KeyDoor state.\n";
+  oss << "% dir_to/3 gives the first step of a shortest path toward an object.\n";
+  oss << "% The header below keeps the file loadable in SWI-Prolog.\n";
 
   bool saw_dir = false;
   for (const auto& atom : cfg.atoms) {
@@ -38,7 +40,7 @@ std::string emit_perception_layer(const EmitConfig& cfg) {
   }
   if (saw_dir) {
     oss << ":- dynamic dir_to/3.\n";
-    oss << "% dir_to(S, Obj, D) :- ... tabled shortest-path step (wired by runtime).\n";
+    oss << "% dir_to(S, Obj, D) is defined by the runtime perception layer.\n";
   }
   oss << "\n";
   return oss.str();

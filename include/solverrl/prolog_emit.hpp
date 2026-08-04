@@ -7,16 +7,17 @@
 
 namespace solverrl {
 
-// Ground-atom naming for emission (FOIL atom_id → Prolog literal).
+// Ground-atom naming for Prolog emission (FOIL atom_id → literal text).
 struct AtomSchema {
-  std::string predicate;           // e.g. on_key, dir_to
-  std::vector<std::string> object_args;  // e.g. {"key"} for dir_to(S,key,D)
-  bool binds_direction = false;    // append Direction var D
+  std::string predicate;
+  std::vector<std::string> object_args;
+  bool binds_direction = false;  // emit shared variable D (e.g. dir_to(S, key, D))
+  std::string fixed_direction;   // emit a ground direction (e.g. up)
 };
 
 struct EmitConfig {
-  std::vector<std::string> action_names;  // index → Prolog action term
-  std::vector<AtomSchema> atoms;          // index → schema
+  std::vector<std::string> action_names;
+  std::vector<AtomSchema> atoms;
 };
 
 // Emit a SWI-Prolog program: perception/path stubs + decision list with cuts.

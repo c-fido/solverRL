@@ -24,6 +24,20 @@ add_library(solverrl_prolog src/prolog_emit.cpp)
 target_include_directories(solverrl_prolog PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(solverrl_prolog PUBLIC solverrl_foil)
 
+add_library(solverrl_keydoor_ground src/keydoor_ground.cpp)
+target_include_directories(solverrl_keydoor_ground PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(solverrl_keydoor_ground PUBLIC solverrl_vocab)
+
+add_library(solverrl_rule_learner src/rule_learner.cpp)
+target_include_directories(solverrl_rule_learner PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(solverrl_rule_learner PUBLIC solverrl_foil solverrl_prolog solverrl_keydoor_ground)
+
+add_executable(test_keydoor_ground tests/cpp/test_keydoor_ground.cpp)
+target_link_libraries(test_keydoor_ground PRIVATE solverrl_keydoor_ground GTest::gtest_main)
+
+add_executable(test_rule_learner tests/cpp/test_rule_learner.cpp)
+target_link_libraries(test_rule_learner PRIVATE solverrl_rule_learner GTest::gtest_main)
+
 add_executable(test_vocabulary tests/cpp/test_vocabulary.cpp)
 target_link_libraries(test_vocabulary PRIVATE solverrl_vocab GTest::gtest_main)
 
@@ -37,17 +51,20 @@ add_executable(test_synthetic_vocab tests/cpp/test_synthetic_vocab.cpp)
 target_link_libraries(test_synthetic_vocab PRIVATE solverrl_vocab solverrl_prolog GTest::gtest_main)
 
 include(GoogleTest)
+gtest_discover_tests(test_keydoor_ground)
+gtest_discover_tests(test_rule_learner)
 gtest_discover_tests(test_vocabulary)
 gtest_discover_tests(test_foil)
 gtest_discover_tests(test_prolog_emit)
 gtest_discover_tests(test_synthetic_vocab)
 
-# ponytail: pybind11 comes from the pinned venv, not FetchContent — one source of truth for the ABI
+# Resolve pybind11 from the active Python environment (matches pip/venv ABI).
 find_package(Python REQUIRED COMPONENTS Interpreter Development.Module)
 execute_process(
   COMMAND ${Python_EXECUTABLE} -m pybind11 --cmakedir
   OUTPUT_VARIABLE pybind11_DIR OUTPUT_STRIP_TRAILING_WHITESPACE)
 find_package(pybind11 REQUIRED)
 
-pybind11_add_module(solverrl_core src/core.cpp src/vocabulary.cpp src/foil.cpp src/prolog_emit.cpp)
+pybind11_add_module(solverrl_core src/core.cpp)
 target_include_directories(solverrl_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(solverrl_core PRIVATE solverrl_rule_learner solverrl_vocab)
