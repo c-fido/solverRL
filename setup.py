@@ -54,6 +54,7 @@ ext_modules = [
             "src/keydoor_ground.cpp",
             "src/rule_learner.cpp",
             "src/exact_eval.cpp",
+            "src/expand.cpp",
         ],
         include_dirs=["include", pybind11.get_include(), include_dir],
         library_dirs=library_dirs,

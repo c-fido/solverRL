@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "solverrl/exact_eval.hpp"
+#include "solverrl/expand.hpp"
 #include "solverrl/keydoor_ground.hpp"
 #include "solverrl/rule_learner.hpp"
 #include "solverrl/vocabulary.hpp"
@@ -163,6 +164,41 @@ solverrl::ExactEvaluator exact_evaluator_from_numpy(py::array transition, py::ar
                                   done_index, horizon);
 }
 
+py::array rollout_policy_array(const solverrl::DecisionList& list, py::array atoms) {
+  if (atoms.ndim() != 2) {
+    throw std::invalid_argument("atoms must be 2-D (n_states, n_atoms)");
+  }
+  const int n = static_cast<int>(atoms.shape(0));
+  py::array_t<int64_t> dummy(n);
+  auto dummy_req = dummy.request();
+  auto* dummy_ptr = static_cast<int64_t*>(dummy_req.ptr);
+  for (int i = 0; i < n; ++i) {
+    dummy_ptr[i] = 0;
+  }
+  const auto examples = examples_from_numpy(atoms, dummy, py::none());
+  const auto policy = solverrl::rollout_policy(list, examples);
+
+  py::array_t<int64_t> out(n);
+  auto out_req = out.request();
+  auto* out_ptr = static_cast<int64_t*>(out_req.ptr);
+  for (int i = 0; i < n; ++i) {
+    out_ptr[i] = policy[static_cast<std::size_t>(i)];
+  }
+  return out;
+}
+
+const char* edit_kind_name(solverrl::EditKind kind) {
+  switch (kind) {
+    case solverrl::EditKind::Specialize:
+      return "specialize";
+    case solverrl::EditKind::Reorder:
+      return "reorder";
+    case solverrl::EditKind::Prune:
+      return "prune";
+  }
+  return "unknown";
+}
+
 }  // namespace
 
 PYBIND11_MODULE(solverrl_core, m) {
@@ -280,4 +316,37 @@ PYBIND11_MODULE(solverrl_core, m) {
                                            policy_from_numpy(teacher));
           },
           py::arg("student"), py::arg("teacher"));
+
+  py::enum_<solverrl::EditKind>(m, "EditKind")
+      .value("Specialize", solverrl::EditKind::Specialize)
+      .value("Reorder", solverrl::EditKind::Reorder)
+      .value("Prune", solverrl::EditKind::Prune);
+
+  py::class_<solverrl::EditProposal>(m, "EditProposal")
+      .def_property_readonly("kind", [](const solverrl::EditProposal& p) { return p.kind; })
+      .def_property_readonly("kind_name",
+                             [](const solverrl::EditProposal& p) {
+                               return edit_kind_name(p.kind);
+                             })
+      .def_readonly("clause_index", &solverrl::EditProposal::clause_index)
+      .def_readonly("other_index", &solverrl::EditProposal::other_index)
+      .def(
+          "rollout",
+          [](const solverrl::EditProposal& p, py::array atoms) {
+            return rollout_policy_array(p.list, atoms);
+          },
+          py::arg("atoms"));
+
+  py::class_<solverrl::ExpandEditor>(m, "ExpandEditor")
+      .def(py::init<int, int>(), py::arg("n_atoms"),
+           py::arg("max_body_literals") = 3)
+      .def(
+          "propose",
+          [](const solverrl::ExpandEditor& self, const solverrl::RuleLearner& learner) {
+            if (!learner.is_fitted()) {
+              throw std::runtime_error("ExpandEditor.propose: RuleLearner not fitted");
+            }
+            return self.propose(learner.decision_list());
+          },
+          py::arg("learner"));
 }
