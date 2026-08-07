@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include "solverrl/exact_eval.hpp"
 #include "solverrl/expand.hpp"
 
 using solverrl::Clause;
@@ -115,4 +116,72 @@ TEST(ExpandEditor, RolloutPolicyUsesFirstMatchSemantics) {
   EXPECT_EQ(policy[0], 1);
   EXPECT_EQ(policy[1], 2);
   EXPECT_EQ(policy[2], 0);
+}
+
+TEST(ExpansionLoop, AcceptsEditWhenDeltaJMeetsTau) {
+  const int n = 2;
+  const int a = 2;
+  std::vector<double> P = {0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0};
+  std::vector<double> r = {1.0, 0.0, 0.0, 0.0};
+  std::vector<double> mu0 = {1.0, 0.0};
+  solverrl::ExactEvaluator eval(n, a, std::move(P), std::move(r), std::move(mu0), 0.5, 1, 10);
+
+  solverrl::Example s0;
+  s0.atoms = {true};
+  s0.action = 0;
+  solverrl::Example s1;
+  s1.atoms = {false};
+  s1.action = 0;
+
+  solverrl::ExpandEditor editor(1, 3);
+  solverrl::ExpansionLoop loop(eval, {s0, s1}, editor, 1e-9, 10);
+
+  solverrl::DecisionList list;
+  solverrl::Clause bad;
+  bad.body = {solverrl::Literal{0, false}};
+  bad.head_action = 1;
+  list.clauses.push_back(bad);
+  solverrl::Clause def;
+  def.is_default = true;
+  def.head_action = 0;
+  list.clauses.push_back(def);
+
+  const auto result = loop.run(list);
+  EXPECT_GT(result.iterations, 0);
+  EXPECT_NEAR(result.final_return, 1.0, 1e-9);
+  EXPECT_GE(result.return_curve.size(), 2u);
+  for (std::size_t i = 1; i < result.return_curve.size(); ++i) {
+    EXPECT_GE(result.return_curve[i], result.return_curve[i - 1] - 1e-12);
+  }
+}
+
+TEST(ExpansionLoop, StopsWhenTauTooLarge) {
+  const int n = 2;
+  const int a = 2;
+  std::vector<double> P = {0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0};
+  std::vector<double> r = {1.0, 0.0, 0.0, 0.0};
+  std::vector<double> mu0 = {1.0, 0.0};
+  solverrl::ExactEvaluator eval(n, a, std::move(P), std::move(r), std::move(mu0), 0.5, 1, 10);
+
+  solverrl::Example s0;
+  s0.atoms = {true};
+  solverrl::Example s1;
+  s1.atoms = {false};
+
+  solverrl::ExpandEditor editor(1, 3);
+  solverrl::ExpansionLoop loop(eval, {s0, s1}, editor, 1e9, 10);
+
+  solverrl::DecisionList list;
+  solverrl::Clause bad;
+  bad.body = {solverrl::Literal{0, false}};
+  bad.head_action = 1;
+  list.clauses.push_back(bad);
+  solverrl::Clause def;
+  def.is_default = true;
+  def.head_action = 0;
+  list.clauses.push_back(def);
+
+  const auto result = loop.run(list);
+  EXPECT_EQ(result.iterations, 0);
+  EXPECT_EQ(result.return_curve.size(), 1u);
 }

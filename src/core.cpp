@@ -283,6 +283,10 @@ PYBIND11_MODULE(solverrl_core, m) {
           },
           py::arg("atoms"))
       .def("to_prolog", &solverrl::RuleLearner::to_prolog)
+      .def("load_expansion_result",
+           [](solverrl::RuleLearner& self, const solverrl::ExpansionResult& result) {
+             self.load_decision_list(result.final_list);
+           })
       .def_property_readonly("is_fitted", &solverrl::RuleLearner::is_fitted)
       .def_property_readonly("n_clauses", &solverrl::RuleLearner::n_clauses);
 
@@ -347,6 +351,45 @@ PYBIND11_MODULE(solverrl_core, m) {
               throw std::runtime_error("ExpandEditor.propose: RuleLearner not fitted");
             }
             return self.propose(learner.decision_list());
+          },
+          py::arg("learner"));
+
+  py::class_<solverrl::ExpansionResult>(m, "ExpansionResult")
+      .def_readonly("return_curve", &solverrl::ExpansionResult::return_curve)
+      .def_readonly("success_curve", &solverrl::ExpansionResult::success_curve)
+      .def_readonly("iterations", &solverrl::ExpansionResult::iterations)
+      .def_readonly("final_return", &solverrl::ExpansionResult::final_return)
+      .def_readonly("final_success", &solverrl::ExpansionResult::final_success)
+      .def_readonly("accepted_any_edit", &solverrl::ExpansionResult::accepted_any_edit);
+
+  py::class_<solverrl::ExpansionLoop>(m, "ExpansionLoop")
+      .def(
+          py::init([](const solverrl::ExactEvaluator& evaluator, py::array atoms, int max_lit,
+                      double tau, int max_iterations) {
+            if (atoms.ndim() != 2) {
+              throw std::invalid_argument("atoms must be 2-D (n_states, n_atoms)");
+            }
+            const int n = static_cast<int>(atoms.shape(0));
+            py::array_t<int64_t> dummy(n);
+            auto dummy_req = dummy.request();
+            auto* dummy_ptr = static_cast<int64_t*>(dummy_req.ptr);
+            for (int i = 0; i < n; ++i) {
+              dummy_ptr[i] = 0;
+            }
+            auto examples = examples_from_numpy(atoms, dummy, py::none());
+            solverrl::ExpandEditor editor(solverrl::kKeyDoorNumAtoms, max_lit);
+            return solverrl::ExpansionLoop(evaluator, std::move(examples), std::move(editor),
+                                           tau, max_iterations);
+          }),
+          py::arg("evaluator"), py::arg("atoms"), py::arg("max_body_literals") = 3,
+          py::arg("tau") = 1e-9, py::arg("max_iterations") = 200)
+      .def(
+          "run",
+          [](const solverrl::ExpansionLoop& self, const solverrl::RuleLearner& learner) {
+            if (!learner.is_fitted()) {
+              throw std::runtime_error("ExpansionLoop.run: RuleLearner not fitted");
+            }
+            return self.run(learner.decision_list());
           },
           py::arg("learner"));
 }

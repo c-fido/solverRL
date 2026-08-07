@@ -22,6 +22,14 @@ void RuleLearner::fit(const std::vector<Example>& examples) {
   fitted_ = true;
 }
 
+void RuleLearner::load_decision_list(DecisionList list) {
+  if (list.clauses.empty()) {
+    throw std::invalid_argument("RuleLearner.load_decision_list: empty list");
+  }
+  list_ = std::move(list);
+  fitted_ = true;
+}
+
 double RuleLearner::fidelity(const std::vector<Example>& examples) const {
   if (!fitted_) {
     throw std::runtime_error("RuleLearner.fidelity: call fit() first");

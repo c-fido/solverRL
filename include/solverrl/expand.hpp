@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "solverrl/foil.hpp"
+#include "solverrl/exact_eval.hpp"
 
 namespace solverrl {
 
@@ -37,5 +38,30 @@ class ExpandEditor {
 };
 
 bool decision_lists_equal(const DecisionList& a, const DecisionList& b);
+
+struct ExpansionResult {
+  DecisionList final_list;
+  std::vector<double> return_curve;
+  std::vector<double> success_curve;
+  int iterations = 0;
+  double final_return = 0.0;
+  double final_success = 0.0;
+  bool accepted_any_edit = false;
+};
+
+class ExpansionLoop {
+ public:
+  ExpansionLoop(const ExactEvaluator& evaluator, std::vector<Example> examples,
+                ExpandEditor editor, double tau, int max_iterations);
+
+  ExpansionResult run(const DecisionList& initial) const;
+
+ private:
+  const ExactEvaluator& evaluator_;
+  std::vector<Example> examples_;
+  ExpandEditor editor_;
+  double tau_;
+  int max_iterations_;
+};
 
 }  // namespace solverrl

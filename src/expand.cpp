@@ -153,4 +153,75 @@ std::vector<EditProposal> ExpandEditor::propose(const DecisionList& list) const 
   return proposals;
 }
 
+ExpansionLoop::ExpansionLoop(const ExactEvaluator& evaluator, std::vector<Example> examples,
+                             ExpandEditor editor, double tau, int max_iterations)
+    : evaluator_(evaluator),
+      examples_(std::move(examples)),
+      editor_(std::move(editor)),
+      tau_(tau),
+      max_iterations_(max_iterations) {
+  if (examples_.empty()) {
+    throw std::invalid_argument("ExpansionLoop: examples must be non-empty");
+  }
+  if (tau_ < 0.0) {
+    throw std::invalid_argument("ExpansionLoop: tau must be non-negative");
+  }
+  if (max_iterations_ <= 0) {
+    throw std::invalid_argument("ExpansionLoop: max_iterations must be positive");
+  }
+}
+
+ExpansionResult ExpansionLoop::run(const DecisionList& initial) const {
+  if (initial.clauses.empty()) {
+    throw std::invalid_argument("ExpansionLoop.run: empty decision list");
+  }
+
+  ExpansionResult result;
+  result.final_list = initial;
+
+  auto eval_list = [&](const DecisionList& list) {
+    const auto policy = rollout_policy(list, examples_);
+    return std::pair<double, double>{evaluator_.exact_return(policy),
+                                     evaluator_.success_probability(policy)};
+  };
+
+  auto [j, succ] = eval_list(result.final_list);
+  result.return_curve.push_back(j);
+  result.success_curve.push_back(succ);
+  result.final_return = j;
+  result.final_success = succ;
+
+  for (int iter = 0; iter < max_iterations_; ++iter) {
+    const auto proposals = editor_.propose(result.final_list);
+    double best_delta = 0.0;
+    int best_index = -1;
+
+    for (int i = 0; i < static_cast<int>(proposals.size()); ++i) {
+      const auto [j_candidate, _succ] = eval_list(proposals[static_cast<std::size_t>(i)].list);
+      (void)_succ;
+      const double delta = j_candidate - result.final_return;
+      if (delta + 1e-15 >= tau_ && delta > best_delta + 1e-15) {
+        best_delta = delta;
+        best_index = i;
+      }
+    }
+
+    if (best_index < 0) {
+      break;
+    }
+
+    result.final_list = proposals[static_cast<std::size_t>(best_index)].list;
+    result.final_return += best_delta;
+    const auto [j_new, succ_new] = eval_list(result.final_list);
+    result.final_return = j_new;
+    result.final_success = succ_new;
+    result.return_curve.push_back(j_new);
+    result.success_curve.push_back(succ_new);
+    result.accepted_any_edit = true;
+    result.iterations = iter + 1;
+  }
+
+  return result;
+}
+
 }  // namespace solverrl

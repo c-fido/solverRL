@@ -18,6 +18,7 @@ class RuleLearner {
               int max_body_literals = 3);
 
   void fit(const std::vector<Example>& examples);
+  void load_decision_list(DecisionList list);
   double fidelity(const std::vector<Example>& examples) const;
   int predict(const Example& example) const;
   int predict_atoms(const std::vector<bool>& atoms) const;

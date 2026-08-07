@@ -30,7 +30,7 @@ target_link_libraries(solverrl_keydoor_ground PUBLIC solverrl_vocab)
 
 add_library(solverrl_expand src/expand.cpp)
 target_include_directories(solverrl_expand PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(solverrl_expand PUBLIC solverrl_foil)
+target_link_libraries(solverrl_expand PUBLIC solverrl_foil solverrl_exact_eval)
 
 add_library(solverrl_exact_eval src/exact_eval.cpp)
 target_include_directories(solverrl_exact_eval PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
