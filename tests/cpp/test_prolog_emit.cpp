@@ -82,3 +82,25 @@ TEST(PrologEmit, DirToLiteralSharesDirectionVariableInHead) {
   const std::string pl = emit_prolog(list, cfg);
   EXPECT_NE(pl.find("act(S, move(D)) :- dir_to(S, key, D), !."), std::string::npos);
 }
+
+TEST(PrologEmit, SharedDirClauseEmitsMoveD) {
+  DecisionList list;
+  Clause c;
+  c.binds_direction = true;
+  c.dir_object = 0;
+  c.body = {Literal{0, true}};  // \+ on_key
+  list.clauses.push_back(c);
+  Clause def;
+  def.is_default = true;
+  def.head_action = 0;
+  list.clauses.push_back(def);
+
+  EmitConfig cfg;
+  cfg.action_names = {"move(up)", "pickup"};
+  cfg.dir_objects = {"key", "door", "goal"};
+  cfg.atoms = {AtomSchema{"on_key", {}, false}};
+
+  const std::string pl = emit_prolog(list, cfg);
+  EXPECT_NE(pl.find("act(S, move(D)) :- dir_to(S, key, D), \\+ on_key(S), !."),
+            std::string::npos);
+}

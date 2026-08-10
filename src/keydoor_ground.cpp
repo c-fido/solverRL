@@ -95,26 +95,87 @@ std::vector<std::vector<int>> bfs_dist(Pos start, int door_row, bool door_open) 
   return dist;
 }
 
-void set_dir_to_atoms(std::vector<bool>& atoms, int base_idx, Pos agent, Pos target,
-                      int door_row, bool door_open) {
-  const auto dist = bfs_dist(agent, door_row, door_open);
-  if (target.first < 0 || target.second < 0 ||
-      dist[target.first][target.second] < 0) {
+// Multi-source BFS: distance from each cell to the nearest target.
+std::vector<std::vector<int>> bfs_dist_from_targets(const std::vector<Pos>& targets,
+                                                     int door_row, bool door_open) {
+  std::vector<std::vector<int>> dist(kHeight, std::vector<int>(kWidth, -1));
+  std::queue<Pos> q;
+  for (const Pos& t : targets) {
+    if (t.first < 0 || t.second < 0 || t.first >= kHeight || t.second >= kWidth) {
+      continue;
+    }
+    if (!is_walkable(t, door_row, door_open)) {
+      continue;
+    }
+    if (dist[t.first][t.second] >= 0) {
+      continue;
+    }
+    dist[t.first][t.second] = 0;
+    q.push(t);
+  }
+  while (!q.empty()) {
+    const Pos cur = q.front();
+    q.pop();
+    for (int d = 0; d < kNumDirs; ++d) {
+      const Pos nxt{cur.first + kDr[d], cur.second + kDc[d]};
+      if (!is_walkable(nxt, door_row, door_open)) {
+        continue;
+      }
+      if (dist[nxt.first][nxt.second] >= 0) {
+        continue;
+      }
+      dist[nxt.first][nxt.second] = dist[cur.first][cur.second] + 1;
+      q.push(nxt);
+    }
+  }
+  return dist;
+}
+
+void set_dir_to_nearest(std::vector<bool>& atoms, int base_idx, Pos agent,
+                        const std::vector<Pos>& targets, int door_row, bool door_open) {
+  if (targets.empty() || !is_walkable(agent, door_row, door_open)) {
     return;
   }
-  const int target_dist = dist[target.first][target.second];
-  if (target_dist == 0) {
-    return;
+  const auto dist = bfs_dist_from_targets(targets, door_row, door_open);
+  const int here = dist[agent.first][agent.second];
+  if (here <= 0) {
+    return;  // unreachable or already on a target cell
   }
+  // Step to any neighbor closer to the nearest target (canonical: first in dir order).
   for (int d = 0; d < kNumDirs; ++d) {
     const Pos nxt{agent.first + kDr[d], agent.second + kDc[d]};
     if (!is_walkable(nxt, door_row, door_open)) {
       continue;
     }
-    if (dist[nxt.first][nxt.second] == target_dist - 1) {
+    if (dist[nxt.first][nxt.second] == here - 1) {
       atoms[static_cast<std::size_t>(base_idx + d)] = true;
+      return;
     }
   }
+}
+
+void set_dir_to_atoms(std::vector<bool>& atoms, int base_idx, Pos agent, Pos target,
+                      int door_row, bool door_open) {
+  set_dir_to_nearest(atoms, base_idx, agent, {target}, door_row, door_open);
+}
+
+// Closed door cell is not walkable, so path-to-door targets adjacent cells instead.
+void set_dir_to_door(std::vector<bool>& atoms, int base_idx, Pos agent, Pos door,
+                     int door_row, bool door_open) {
+  if (adjacent(agent, door)) {
+    return;
+  }
+  std::vector<Pos> targets;
+  if (door_open && is_walkable(door, door_row, door_open)) {
+    targets.push_back(door);
+  }
+  for (int d = 0; d < kNumDirs; ++d) {
+    const Pos nxt{door.first + kDr[d], door.second + kDc[d]};
+    if (is_walkable(nxt, door_row, door_open)) {
+      targets.push_back(nxt);
+    }
+  }
+  set_dir_to_nearest(atoms, base_idx, agent, targets, door_row, door_open);
 }
 
 }  // namespace
@@ -156,7 +217,7 @@ std::vector<bool> ground_atoms(const KeyDoorState& state) {
     set_dir_to_atoms(atoms, 5, agent, Pos{state.key_r, state.key_c}, state.door_row,
                      state.door_open);
   }
-  set_dir_to_atoms(atoms, 9, agent, door, state.door_row, state.door_open);
+  set_dir_to_door(atoms, 9, agent, door, state.door_row, state.door_open);
   set_dir_to_atoms(atoms, 13, agent, goal, state.door_row, state.door_open);
 
   return atoms;
@@ -166,6 +227,7 @@ EmitConfig keydoor_emit_config() {
   EmitConfig cfg;
   cfg.action_names = {"move(up)", "move(down)", "move(left)", "move(right)", "pickup",
                       "toggle"};
+  cfg.dir_objects = {"key", "door", "goal"};
   cfg.atoms = {
       AtomSchema{"on_key", {}, false, ""},
       AtomSchema{"door_open", {}, false, ""},

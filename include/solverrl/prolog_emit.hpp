@@ -18,6 +18,8 @@ struct AtomSchema {
 struct EmitConfig {
   std::vector<std::string> action_names;
   std::vector<AtomSchema> atoms;
+  // Object names for shared-D clauses: dir_to(S, object_names[dir_object], D).
+  std::vector<std::string> dir_objects;
 };
 
 // Emit a SWI-Prolog program: perception/path stubs + decision list with cuts.

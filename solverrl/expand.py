@@ -23,18 +23,33 @@ class ExpandResult:
     prolog: str
 
 
-def propose_edits(learner, *, max_body_literals: int = 3) -> Sequence:
-    """Return specialize / reorder / prune proposals for a fitted RuleLearner."""
+def propose_edits(
+    learner,
+    atoms: np.ndarray,
+    teacher_actions: np.ndarray,
+    *,
+    max_body_literals: int = 3,
+) -> Sequence:
+    """Return EXPAND edit proposals for a fitted RuleLearner."""
     import solverrl_core
 
-    editor = solverrl_core.ExpandEditor(solverrl_core.KEYDOOR_NUM_ATOMS, max_body_literals)
-    return editor.propose(learner)
+    editor = solverrl_core.ExpandEditor(
+        solverrl_core.KEYDOOR_NUM_ATOMS,
+        solverrl_core.KEYDOOR_NUM_ACTIONS,
+        max_body_literals,
+    )
+    return editor.propose(
+        learner,
+        np.ascontiguousarray(atoms, dtype=np.uint8),
+        np.ascontiguousarray(teacher_actions, dtype=np.int64),
+    )
 
 
 def certify_and_expand(
     learner,
     mdp: ExactMDP,
     atoms: np.ndarray,
+    teacher_actions: np.ndarray,
     *,
     tau: float = 1e-9,
     max_iterations: int = 200,
@@ -47,6 +62,7 @@ def certify_and_expand(
     loop = solverrl_core.ExpansionLoop(
         evaluator,
         np.ascontiguousarray(atoms, dtype=np.uint8),
+        np.ascontiguousarray(teacher_actions, dtype=np.int64),
         max_body_literals,
         float(tau),
         int(max_iterations),

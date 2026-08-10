@@ -46,8 +46,9 @@ bool has_kind(const std::vector<EditProposal>& props, EditKind kind) {
 
 TEST(ExpandEditor, ProposesSpecializeReorderAndPrune) {
   const auto list = sample_list();
-  ExpandEditor editor(/*n_atoms=*/3, /*max_body_literals=*/3);
-  const auto props = editor.propose(list);
+  ExpandEditor editor(/*n_atoms=*/3, /*n_actions=*/3, /*max_body_literals=*/3);
+  const std::vector<Example> examples;
+  const auto props = editor.propose(list, examples);
   ASSERT_GT(props.size(), 0u);
   EXPECT_TRUE(has_kind(props, EditKind::Specialize));
   EXPECT_TRUE(has_kind(props, EditKind::Reorder));
@@ -56,8 +57,9 @@ TEST(ExpandEditor, ProposesSpecializeReorderAndPrune) {
 
 TEST(ExpandEditor, SpecializeAddsLiteralAtClausePosition) {
   const auto list = sample_list();
-  ExpandEditor editor(3, 3);
-  const auto props = editor.propose(list);
+  ExpandEditor editor(3, 3, 3);
+  const std::vector<Example> examples;
+  const auto props = editor.propose(list, examples);
   bool found = false;
   for (const auto& p : props) {
     if (p.kind != EditKind::Specialize || p.clause_index != 0) {
@@ -73,8 +75,9 @@ TEST(ExpandEditor, SpecializeAddsLiteralAtClausePosition) {
 
 TEST(ExpandEditor, ReorderSwapsNonDefaultClauses) {
   const auto list = sample_list();
-  ExpandEditor editor(3, 3);
-  const auto props = editor.propose(list);
+  ExpandEditor editor(3, 3, 3);
+  const std::vector<Example> examples;
+  const auto props = editor.propose(list, examples);
   for (const auto& p : props) {
     if (p.kind != EditKind::Reorder) {
       continue;
@@ -89,8 +92,9 @@ TEST(ExpandEditor, ReorderSwapsNonDefaultClauses) {
 
 TEST(ExpandEditor, PruneRemovesConditionalClause) {
   const auto list = sample_list();
-  ExpandEditor editor(3, 3);
-  const auto props = editor.propose(list);
+  ExpandEditor editor(3, 3, 3);
+  const std::vector<Example> examples;
+  const auto props = editor.propose(list, examples);
   for (const auto& p : props) {
     if (p.kind != EditKind::Prune || p.clause_index != 0) {
       continue;
@@ -133,7 +137,7 @@ TEST(ExpansionLoop, AcceptsEditWhenDeltaJMeetsTau) {
   s1.atoms = {false};
   s1.action = 0;
 
-  solverrl::ExpandEditor editor(1, 3);
+  solverrl::ExpandEditor editor(1, 2, 3);
   solverrl::ExpansionLoop loop(eval, {s0, s1}, editor, 1e-9, 10);
 
   solverrl::DecisionList list;
@@ -168,7 +172,7 @@ TEST(ExpansionLoop, StopsWhenTauTooLarge) {
   solverrl::Example s1;
   s1.atoms = {false};
 
-  solverrl::ExpandEditor editor(1, 3);
+  solverrl::ExpandEditor editor(1, 2, 3);
   solverrl::ExpansionLoop loop(eval, {s0, s1}, editor, 1e9, 10);
 
   solverrl::DecisionList list;

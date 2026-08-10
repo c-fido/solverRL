@@ -15,7 +15,7 @@ class RuleLearner {
   static RuleLearner keydoor(double min_score = 1e-12, int max_body_literals = 3);
 
   RuleLearner(int n_atoms, int n_actions, EmitConfig emit_cfg, double min_score = 1e-12,
-              int max_body_literals = 3);
+              int max_body_literals = 3, SharedDirConfig shared_dir = {});
 
   void fit(const std::vector<Example>& examples);
   void load_decision_list(DecisionList list);
@@ -28,10 +28,12 @@ class RuleLearner {
   bool is_fitted() const { return fitted_; }
   std::size_t n_clauses() const { return list_.clauses.size(); }
   const DecisionList& decision_list() const { return list_; }
+  const SharedDirConfig& shared_dir() const { return shared_dir_; }
 
  private:
   OrderedCovering learner_;
   EmitConfig emit_cfg_;
+  SharedDirConfig shared_dir_;
   DecisionList list_;
   bool fitted_ = false;
 };

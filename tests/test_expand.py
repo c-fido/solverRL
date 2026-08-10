@@ -21,11 +21,13 @@ def test_expand_editor_proposes_all_kinds(mdp: ExactMDP = ExactMDP.from_keydoor(
     learner = solverrl_core.RuleLearner.keydoor()
     learner.fit(atoms, np.asarray(census.actions, dtype=np.int64))
 
-    props = propose_edits(learner)
+    props = propose_edits(learner, atoms, np.asarray(census.actions, dtype=np.int64))
     kinds = {p.kind_name for p in props}
     assert "specialize" in kinds
     assert "reorder" in kinds
     assert "prune" in kinds
+    assert "retarget_head" in kinds
+    assert "add_clause" in kinds
 
 
 def test_proposal_rollout_shape(mdp: ExactMDP = ExactMDP.from_keydoor()):
@@ -36,7 +38,7 @@ def test_proposal_rollout_shape(mdp: ExactMDP = ExactMDP.from_keydoor()):
     atoms = ground_atoms(mdp.states)
     learner = solverrl_core.RuleLearner.keydoor()
     learner.fit(atoms, np.asarray(census.actions, dtype=np.int64))
-    props = propose_edits(learner)
+    props = propose_edits(learner, atoms, np.asarray(census.actions, dtype=np.int64))
     assert len(props) > 0
     rolled = np.asarray(props[0].rollout(atoms), dtype=np.int64)
     assert rolled.shape == (mdp.n,)

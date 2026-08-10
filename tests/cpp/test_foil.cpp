@@ -98,3 +98,44 @@ TEST(OrderedCovering, DefaultIsResidualMajority) {
   EXPECT_EQ(list.clauses.back().head_action, 1);
   EXPECT_EQ(OrderedCovering::weighted_majority_action(data, 2), 1);
 }
+
+TEST(OrderedCovering, LearnsSharedDirectionMoveD) {
+  // Layout: [unary0, dir_up, dir_down, dir_left, dir_right] for one object at base=1.
+  // Teacher: move(D) whenever dir_to holds; else pickup (action 4).
+  solverrl::SharedDirConfig cfg;
+  cfg.enabled = true;
+  cfg.n_objects = 1;
+  cfg.atom_base = 1;
+  cfg.n_directions = 4;
+  cfg.object_names = {"key"};
+
+  std::vector<Example> data;
+  for (int d = 0; d < 4; ++d) {
+    Example ex;
+    ex.atoms = {false, false, false, false, false};
+    ex.atoms[static_cast<std::size_t>(1 + d)] = true;
+    ex.action = d;
+    ex.weight = 2.0;
+    data.push_back(ex);
+  }
+  Example pickup;
+  pickup.atoms = {true, false, false, false, false};
+  pickup.action = 4;
+  pickup.weight = 1.0;
+  data.push_back(pickup);
+
+  OrderedCovering learner(/*n_atoms=*/5, /*n_actions=*/5, /*min_score=*/1e-12,
+                          /*max_body_literals=*/3, cfg);
+  const auto list = learner.fit(data);
+
+  bool found_shared = false;
+  for (const auto& c : list.clauses) {
+    if (c.binds_direction && c.dir_object == 0) {
+      found_shared = true;
+    }
+  }
+  EXPECT_TRUE(found_shared);
+  for (const auto& ex : data) {
+    EXPECT_EQ(list.predict(ex), ex.action);
+  }
+}

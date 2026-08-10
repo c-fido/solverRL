@@ -66,6 +66,33 @@ def test_distill_smoke_census_pipeline(mdp: ExactMDP):
     assert "move(" in result.prolog or "pickup" in result.prolog
 
 
+def test_shared_direction_foil_emits_move_d(mdp: ExactMDP):
+    """KeyDoor FOIL should be able to emit act(S, move(D)) :- dir_to(S, Obj, D)."""
+    import solverrl_core
+
+    atoms = ground_atoms(mdp.states)
+    # Synthetic teacher: follow dir_to(key) when present, else pickup/default.
+    actions = np.zeros(mdp.n, dtype=np.int64)
+    for i in range(mdp.n):
+        row = atoms[i]
+        if row[0]:
+            actions[i] = 4  # pickup
+            continue
+        chosen = -1
+        for d in range(4):
+            if row[5 + d]:
+                chosen = d
+                break
+        actions[i] = chosen if chosen >= 0 else 0
+
+    learner = solverrl_core.RuleLearner.keydoor()
+    learner.fit(atoms, actions)
+    pl = learner.to_prolog()
+    assert "move(D)" in pl
+    assert "dir_to(S, key, D)" in pl
+    assert learner.fidelity(atoms, actions) >= 0.9
+
+
 def test_distill_recovers_planted_teacher(mdp: ExactMDP):
     """A teacher induced by FOIL should distill back with near-perfect fidelity."""
     import solverrl_core

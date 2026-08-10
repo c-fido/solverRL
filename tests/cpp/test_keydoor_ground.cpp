@@ -64,3 +64,36 @@ TEST(KeyDoorGround, DirToGoalIncludesShortestStep) {
   const bool any_goal_dir = atoms[13] || atoms[14] || atoms[15] || atoms[16];
   EXPECT_TRUE(any_goal_dir);
 }
+
+TEST(KeyDoorGround, DirToIsFunctionalSingleDirection) {
+  auto s = make_state(0, 0, 0, 2, 1, 0, 4, false, false);
+  const auto atoms = ground_atoms(s);
+  int key_dirs = 0;
+  for (int d = 0; d < 4; ++d) {
+    if (atoms[static_cast<std::size_t>(5 + d)]) {
+      ++key_dirs;
+    }
+  }
+  EXPECT_EQ(key_dirs, 1);
+}
+
+TEST(KeyDoorGround, DirToDoorWorksWhenDoorClosed) {
+  // Agent in left room with key; closed door must still yield a navigation dir.
+  auto s = make_state(/*door_row=*/1, /*ar=*/0, /*ac=*/0, /*kr=*/-1, /*kc=*/-1,
+                      /*gr=*/0, /*gc=*/4, /*door_open=*/false, /*carrying=*/true);
+  const auto atoms = ground_atoms(s);
+  EXPECT_FALSE(atoms[3]);  // not yet adjacent
+  const int door_dirs =
+      static_cast<int>(atoms[9]) + atoms[10] + atoms[11] + atoms[12];
+  EXPECT_EQ(door_dirs, 1);
+}
+
+TEST(KeyDoorGround, DirToKeyPrefersShortestStepNotArbitraryNeighbor) {
+  // agent (0,0), key (0,1) → must be right (index 3 within key block 5..8).
+  auto s = make_state(0, 0, 0, 0, 1, 0, 4, false, false);
+  const auto atoms = ground_atoms(s);
+  EXPECT_FALSE(atoms[5]);  // up
+  EXPECT_FALSE(atoms[6]);  // down
+  EXPECT_FALSE(atoms[7]);  // left
+  EXPECT_TRUE(atoms[8]);   // right
+}

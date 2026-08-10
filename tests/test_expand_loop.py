@@ -28,7 +28,10 @@ def test_certify_and_expand_return_curve_monotone(mdp: ExactMDP):
     learner = solverrl_core.RuleLearner.keydoor()
     learner.fit(atoms, np.asarray(census.actions, dtype=np.int64))
 
-    result = certify_and_expand(learner, mdp, atoms, tau=1e-9, max_iterations=20)
+    result = certify_and_expand(
+        learner, mdp, atoms, np.asarray(census.actions, dtype=np.int64),
+        tau=1e-9, max_iterations=20,
+    )
     assert len(result.return_curve) >= 1
     for i in range(len(result.return_curve) - 1):
         assert result.return_curve[i + 1] >= result.return_curve[i] - 1e-12
@@ -45,7 +48,10 @@ def test_certify_and_expand_stops_with_large_tau(mdp: ExactMDP):
     learner = solverrl_core.RuleLearner.keydoor()
     learner.fit(atoms, np.asarray(census.actions, dtype=np.int64))
 
-    result = certify_and_expand(learner, mdp, atoms, tau=1e9, max_iterations=10)
+    result = certify_and_expand(
+        learner, mdp, atoms, np.asarray(census.actions, dtype=np.int64),
+        tau=1e9, max_iterations=10,
+    )
     assert result.iterations == 0
     assert len(result.return_curve) == 1
 

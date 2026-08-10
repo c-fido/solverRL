@@ -31,9 +31,9 @@ std::string emit_perception_layer(const EmitConfig& cfg) {
   oss << "% dir_to/3 gives the first step of a shortest path toward an object.\n";
   oss << "% The header below keeps the file loadable in SWI-Prolog.\n";
 
-  bool saw_dir = false;
+  bool saw_dir = !cfg.dir_objects.empty();
   for (const auto& atom : cfg.atoms) {
-    if (atom.binds_direction) {
+    if (atom.binds_direction || atom.predicate == "dir_to") {
       saw_dir = true;
       break;
     }
@@ -59,21 +59,45 @@ std::string emit_prolog(const DecisionList& list, const EmitConfig& cfg) {
 
   for (std::size_t i = 0; i < list.clauses.size(); ++i) {
     const Clause& c = list.clauses[i];
-    if (c.head_action < 0 ||
-        static_cast<std::size_t>(c.head_action) >= cfg.action_names.size()) {
-      throw std::out_of_range("emit_prolog: head_action out of range");
-    }
-    const std::string& action = cfg.action_names[static_cast<std::size_t>(c.head_action)];
     const bool is_last = (i + 1 == list.clauses.size());
-    const bool is_default = c.is_default || c.body.empty();
+    const bool is_default = c.is_default || (!c.binds_direction && c.body.empty());
 
     if (is_default) {
       if (!is_last) {
         throw std::invalid_argument("emit_prolog: default/empty-body clause must be last");
       }
-      oss << "act(_S, " << action << ").\n";
+      if (c.head_action < 0 ||
+          static_cast<std::size_t>(c.head_action) >= cfg.action_names.size()) {
+        throw std::out_of_range("emit_prolog: head_action out of range");
+      }
+      oss << "act(_S, " << cfg.action_names[static_cast<std::size_t>(c.head_action)]
+          << ").\n";
       continue;
     }
+
+    if (c.binds_direction) {
+      if (c.dir_object < 0 ||
+          static_cast<std::size_t>(c.dir_object) >= cfg.dir_objects.size()) {
+        throw std::out_of_range("emit_prolog: dir_object out of range");
+      }
+      oss << "act(S, move(D)) :- dir_to(S, "
+          << cfg.dir_objects[static_cast<std::size_t>(c.dir_object)] << ", D)";
+      for (const auto& lit : c.body) {
+        if (lit.atom_id < 0 ||
+            static_cast<std::size_t>(lit.atom_id) >= cfg.atoms.size()) {
+          throw std::out_of_range("emit_prolog: atom_id out of range");
+        }
+        oss << ", " << emit_literal(lit, cfg.atoms[static_cast<std::size_t>(lit.atom_id)]);
+      }
+      oss << ", !.\n";
+      continue;
+    }
+
+    if (c.head_action < 0 ||
+        static_cast<std::size_t>(c.head_action) >= cfg.action_names.size()) {
+      throw std::out_of_range("emit_prolog: head_action out of range");
+    }
+    const std::string& action = cfg.action_names[static_cast<std::size_t>(c.head_action)];
 
     oss << "act(S, " << action << ") :- ";
     for (std::size_t j = 0; j < c.body.size(); ++j) {

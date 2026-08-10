@@ -3,22 +3,37 @@
 #include <stdexcept>
 
 namespace solverrl {
+namespace {
+
+SharedDirConfig keydoor_shared_dir() {
+  SharedDirConfig cfg;
+  cfg.enabled = true;
+  cfg.n_objects = 3;
+  cfg.atom_base = 5;
+  cfg.n_directions = 4;
+  cfg.object_names = {"key", "door", "goal"};
+  return cfg;
+}
+
+}  // namespace
 
 RuleLearner RuleLearner::keydoor(double min_score, int max_body_literals) {
   return RuleLearner(kKeyDoorNumAtoms, kKeyDoorNumActions, keydoor_emit_config(), min_score,
-                     max_body_literals);
+                     max_body_literals, keydoor_shared_dir());
 }
 
 RuleLearner::RuleLearner(int n_atoms, int n_actions, EmitConfig emit_cfg, double min_score,
-                         int max_body_literals)
-    : learner_(n_atoms, n_actions, min_score, max_body_literals),
-      emit_cfg_(std::move(emit_cfg)) {}
+                         int max_body_literals, SharedDirConfig shared_dir)
+    : learner_(n_atoms, n_actions, min_score, max_body_literals, shared_dir),
+      emit_cfg_(std::move(emit_cfg)),
+      shared_dir_(std::move(shared_dir)) {}
 
 void RuleLearner::fit(const std::vector<Example>& examples) {
   if (examples.empty()) {
     throw std::invalid_argument("RuleLearner.fit: empty examples");
   }
   list_ = learner_.fit(examples);
+  list_.shared_dir = shared_dir_;
   fitted_ = true;
 }
 
@@ -27,6 +42,7 @@ void RuleLearner::load_decision_list(DecisionList list) {
     throw std::invalid_argument("RuleLearner.load_decision_list: empty list");
   }
   list_ = std::move(list);
+  list_.shared_dir = shared_dir_;
   fitted_ = true;
 }
 

@@ -36,6 +36,11 @@ std::vector<int> rollout_policy(const DecisionList& list,
   return policy;
 }
 
+bool policies_equal(const std::vector<int>& a, const std::vector<int>& b) {
+  return a.size() == b.size() &&
+         std::equal(a.begin(), a.end(), b.begin());
+}
+
 bool decision_lists_equal(const DecisionList& a, const DecisionList& b) {
   if (a.clauses.size() != b.clauses.size()) {
     return false;
@@ -44,6 +49,7 @@ bool decision_lists_equal(const DecisionList& a, const DecisionList& b) {
     const Clause& ca = a.clauses[i];
     const Clause& cb = b.clauses[i];
     if (ca.head_action != cb.head_action || ca.is_default != cb.is_default ||
+        ca.binds_direction != cb.binds_direction || ca.dir_object != cb.dir_object ||
         ca.body.size() != cb.body.size()) {
       return false;
     }
@@ -57,10 +63,13 @@ bool decision_lists_equal(const DecisionList& a, const DecisionList& b) {
   return true;
 }
 
-ExpandEditor::ExpandEditor(int n_atoms, int max_body_literals)
-    : n_atoms_(n_atoms), max_body_literals_(max_body_literals) {
+ExpandEditor::ExpandEditor(int n_atoms, int n_actions, int max_body_literals)
+    : n_atoms_(n_atoms), n_actions_(n_actions), max_body_literals_(max_body_literals) {
   if (n_atoms_ <= 0) {
     throw std::invalid_argument("ExpandEditor: n_atoms must be positive");
+  }
+  if (n_actions_ <= 0) {
+    throw std::invalid_argument("ExpandEditor: n_actions must be positive");
   }
   if (max_body_literals_ <= 0) {
     throw std::invalid_argument("ExpandEditor: max_body_literals must be positive");
@@ -68,7 +77,7 @@ ExpandEditor::ExpandEditor(int n_atoms, int max_body_literals)
 }
 
 bool ExpandEditor::is_default_clause(const Clause& clause) {
-  return clause.is_default || clause.body.empty();
+  return clause.is_default || (!clause.binds_direction && clause.body.empty());
 }
 
 bool ExpandEditor::literal_present(const Clause& clause, const Literal& lit) {
@@ -80,7 +89,31 @@ bool ExpandEditor::literal_present(const Clause& clause, const Literal& lit) {
   return false;
 }
 
-std::vector<EditProposal> ExpandEditor::propose(const DecisionList& list) const {
+int ExpandEditor::teacher_majority_on_clause(const Clause& clause,
+                                             const std::vector<Example>& examples,
+                                             int n_actions, const SharedDirConfig& cfg) {
+  std::vector<double> mass(static_cast<std::size_t>(n_actions), 0.0);
+  for (const auto& ex : examples) {
+    if (!clause.covers(ex, cfg)) {
+      continue;
+    }
+    if (ex.action >= 0 && ex.action < n_actions) {
+      mass[static_cast<std::size_t>(ex.action)] += ex.weight;
+    }
+  }
+  int best = 0;
+  double best_w = -1.0;
+  for (int a = 0; a < n_actions; ++a) {
+    if (mass[static_cast<std::size_t>(a)] > best_w) {
+      best_w = mass[static_cast<std::size_t>(a)];
+      best = a;
+    }
+  }
+  return best;
+}
+
+std::vector<EditProposal> ExpandEditor::propose(const DecisionList& list,
+                                                const std::vector<Example>& examples) const {
   if (list.clauses.empty()) {
     return {};
   }
@@ -149,6 +182,52 @@ std::vector<EditProposal> ExpandEditor::propose(const DecisionList& list) const 
     proposals.push_back(std::move(prop));
   }
 
+  // Retarget-head: try a different action on fixed-head clauses (including default).
+  for (int i = 0; i < n; ++i) {
+    if (list.clauses[static_cast<std::size_t>(i)].binds_direction) {
+      continue;
+    }
+    const int current = list.clauses[static_cast<std::size_t>(i)].head_action;
+    for (int action = 0; action < n_actions_; ++action) {
+      if (action == current) {
+        continue;
+      }
+      EditProposal prop;
+      prop.kind = EditKind::RetargetHead;
+      prop.clause_index = i;
+      prop.head_action = action;
+      prop.list = list;
+      prop.list.clauses[static_cast<std::size_t>(i)].head_action = action;
+      proposals.push_back(std::move(prop));
+    }
+  }
+
+  // Add teacher-aligned single-literal clause at any position before the default.
+  const int insert_hi = default_index >= 0 ? default_index : n;
+  for (int insert_at = 0; insert_at <= insert_hi; ++insert_at) {
+    for (int atom = 0; atom < n_atoms_; ++atom) {
+      for (const bool neg : {false, true}) {
+        const Literal lit{atom, neg};
+        Clause probe;
+        probe.body = {lit};
+        probe.head_action =
+            teacher_majority_on_clause(probe, examples, n_actions_, list.shared_dir);
+        EditProposal prop;
+        prop.kind = EditKind::AddClause;
+        prop.clause_index = insert_at;
+        prop.head_action = probe.head_action;
+        prop.added_literal = lit;
+        prop.has_added_literal = true;
+        prop.list = list;
+        Clause added;
+        added.body = {lit};
+        added.head_action = probe.head_action;
+        prop.list.clauses.insert(prop.list.clauses.begin() + insert_at, std::move(added));
+        proposals.push_back(std::move(prop));
+      }
+    }
+  }
+
   dedupe_proposals(proposals);
   return proposals;
 }
@@ -192,12 +271,18 @@ ExpansionResult ExpansionLoop::run(const DecisionList& initial) const {
   result.final_success = succ;
 
   for (int iter = 0; iter < max_iterations_; ++iter) {
-    const auto proposals = editor_.propose(result.final_list);
+    const auto proposals = editor_.propose(result.final_list, examples_);
+    const auto current_policy = rollout_policy(result.final_list, examples_);
     double best_delta = 0.0;
     int best_index = -1;
 
     for (int i = 0; i < static_cast<int>(proposals.size()); ++i) {
-      const auto [j_candidate, _succ] = eval_list(proposals[static_cast<std::size_t>(i)].list);
+      const auto& candidate = proposals[static_cast<std::size_t>(i)].list;
+      const auto candidate_policy = rollout_policy(candidate, examples_);
+      if (policies_equal(current_policy, candidate_policy)) {
+        continue;
+      }
+      const auto [j_candidate, _succ] = eval_list(candidate);
       (void)_succ;
       const double delta = j_candidate - result.final_return;
       if (delta + 1e-15 >= tau_ && delta > best_delta + 1e-15) {

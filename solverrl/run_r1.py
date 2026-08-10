@@ -60,6 +60,7 @@ def run_r1_expand(
         learner,
         mdp,
         atoms,
+        actions,
         tau=tau,
         max_iterations=max_iterations,
         max_body_literals=max_body_literals,

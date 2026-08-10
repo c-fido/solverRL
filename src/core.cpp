@@ -195,6 +195,10 @@ const char* edit_kind_name(solverrl::EditKind kind) {
       return "reorder";
     case solverrl::EditKind::Prune:
       return "prune";
+    case solverrl::EditKind::RetargetHead:
+      return "retarget_head";
+    case solverrl::EditKind::AddClause:
+      return "add_clause";
   }
   return "unknown";
 }
@@ -324,7 +328,9 @@ PYBIND11_MODULE(solverrl_core, m) {
   py::enum_<solverrl::EditKind>(m, "EditKind")
       .value("Specialize", solverrl::EditKind::Specialize)
       .value("Reorder", solverrl::EditKind::Reorder)
-      .value("Prune", solverrl::EditKind::Prune);
+      .value("Prune", solverrl::EditKind::Prune)
+      .value("RetargetHead", solverrl::EditKind::RetargetHead)
+      .value("AddClause", solverrl::EditKind::AddClause);
 
   py::class_<solverrl::EditProposal>(m, "EditProposal")
       .def_property_readonly("kind", [](const solverrl::EditProposal& p) { return p.kind; })
@@ -342,17 +348,19 @@ PYBIND11_MODULE(solverrl_core, m) {
           py::arg("atoms"));
 
   py::class_<solverrl::ExpandEditor>(m, "ExpandEditor")
-      .def(py::init<int, int>(), py::arg("n_atoms"),
+      .def(py::init<int, int, int>(), py::arg("n_atoms"), py::arg("n_actions"),
            py::arg("max_body_literals") = 3)
       .def(
           "propose",
-          [](const solverrl::ExpandEditor& self, const solverrl::RuleLearner& learner) {
+          [](const solverrl::ExpandEditor& self, const solverrl::RuleLearner& learner,
+             py::array atoms, py::array teacher_actions) {
             if (!learner.is_fitted()) {
               throw std::runtime_error("ExpandEditor.propose: RuleLearner not fitted");
             }
-            return self.propose(learner.decision_list());
+            auto examples = examples_from_numpy(atoms, teacher_actions, py::none());
+            return self.propose(learner.decision_list(), examples);
           },
-          py::arg("learner"));
+          py::arg("learner"), py::arg("atoms"), py::arg("teacher_actions"));
 
   py::class_<solverrl::ExpansionResult>(m, "ExpansionResult")
       .def_readonly("return_curve", &solverrl::ExpansionResult::return_curve)
@@ -364,25 +372,17 @@ PYBIND11_MODULE(solverrl_core, m) {
 
   py::class_<solverrl::ExpansionLoop>(m, "ExpansionLoop")
       .def(
-          py::init([](const solverrl::ExactEvaluator& evaluator, py::array atoms, int max_lit,
-                      double tau, int max_iterations) {
-            if (atoms.ndim() != 2) {
-              throw std::invalid_argument("atoms must be 2-D (n_states, n_atoms)");
-            }
-            const int n = static_cast<int>(atoms.shape(0));
-            py::array_t<int64_t> dummy(n);
-            auto dummy_req = dummy.request();
-            auto* dummy_ptr = static_cast<int64_t*>(dummy_req.ptr);
-            for (int i = 0; i < n; ++i) {
-              dummy_ptr[i] = 0;
-            }
-            auto examples = examples_from_numpy(atoms, dummy, py::none());
-            solverrl::ExpandEditor editor(solverrl::kKeyDoorNumAtoms, max_lit);
+          py::init([](const solverrl::ExactEvaluator& evaluator, py::array atoms,
+                      py::array teacher_actions, int max_lit, double tau, int max_iterations) {
+            auto examples = examples_from_numpy(atoms, teacher_actions, py::none());
+            solverrl::ExpandEditor editor(solverrl::kKeyDoorNumAtoms,
+                                            solverrl::kKeyDoorNumActions, max_lit);
             return solverrl::ExpansionLoop(evaluator, std::move(examples), std::move(editor),
                                            tau, max_iterations);
           }),
-          py::arg("evaluator"), py::arg("atoms"), py::arg("max_body_literals") = 3,
-          py::arg("tau") = 1e-9, py::arg("max_iterations") = 200)
+          py::arg("evaluator"), py::arg("atoms"), py::arg("teacher_actions"),
+          py::arg("max_body_literals") = 3, py::arg("tau") = 1e-9,
+          py::arg("max_iterations") = 200)
       .def(
           "run",
           [](const solverrl::ExpansionLoop& self, const solverrl::RuleLearner& learner) {
