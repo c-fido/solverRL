@@ -13,6 +13,8 @@ from solverrl.teachers.census import build_census
 from solverrl.teachers.ppo import build_ppo
 import solverrl_core
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture(scope="module")
 def mdp() -> ExactMDP:
@@ -65,3 +67,8 @@ def test_run_r1_expand_improves_or_matches_initial_return(mdp: ExactMDP):
     assert report.final_return >= report.initial_return - 1e-12
     assert report.final_success >= report.initial_success - 1e-12
     assert len(report.expand.return_curve) >= 1
+    assert report.advantage_gap is not None
+    assert report.advantage_gap.n_disagree >= 0
+    assert np.isfinite(report.advantage_gap.return_gap)
+    assert np.isfinite(report.advantage_gap.weighted_gap)
+    assert np.isfinite(report.teacher_return)

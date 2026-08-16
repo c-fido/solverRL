@@ -3,10 +3,17 @@
 Four-row grid: left room 3 cols, wall with one door cell, right room 2 cols.
 Actions: cardinal moves, pickup, toggle. Exact model access for census / Bellman solves.
 
-Note: the paper reports |S_r|=16,944. A prose-faithful reimplementation yields a smaller
-closed reachable set (~5.8k including DONE). Dynamics/layout details beyond the paper text
-may differ from the authors' private env; we keep exact eval correct for *this* model and
-track the cardinality gap explicitly.
+Note on |S_r| vs paper 16,944
+-----------------------------
+Our BFS from μ0 under this layout yields |S_r|=5,801 (5,800 + absorbing DONE). The paper
+states only the cardinality (and γ=0.99, H=120, R_max=0.99)—not grid size, object
+placement rules, or whether the agent has a facing. Exhaustive enumeration of rectangular
+two-room grids (H∈[3,7], left/right widths ∈[2,6]) under our transition rules, with/without
+door re-close, key≠agent starts, and MiniGrid-style facing, never hits 16,944 (nearest
+no-facing ≈16,834; nearest facing ≈17,305). 16,944=16×3×353 also has prime factor 353, so
+it is almost certainly an empirical BFS count on an unpublished geometry, not a closed
+H·|left|²·|right| product. Exact eval / EXPAND remain correct for *this* model; do not claim
+numeric equality with the paper’s tables.
 """
 
 from __future__ import annotations

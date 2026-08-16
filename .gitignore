@@ -1,11 +1,13 @@
 # Python
 .venv/
+venv/
 __pycache__/
 *.py[cod]
 *$py.class
 *.egg-info/
 .eggs/
 dist/
+build/
 *.egg
 .pytest_cache/
 .mypy_cache/
@@ -15,15 +17,21 @@ htmlcov/
 .ipynb_checkpoints/
 
 # CMake / C++ / pybind11
-build/
 cmake-build-*/
 compile_commands.json
+CMakeUserPresets.json
+CMakeCache.txt
+CMakeFiles/
 *.o
 *.a
 *.dylib
 *.so
 *.so.*
 *.pyd
+# Windows: rename locked solverrl_core*.pyd → *.pyd.bak to unlock rebuilds
+*.bak
+*.pyd.*
+*.dll
 
 # Experiment artifacts
 data/
@@ -44,6 +52,7 @@ wandb/
 
 # OS / editor
 .DS_Store
+Thumbs.db
 .idea/
 .vscode/
 *.swp

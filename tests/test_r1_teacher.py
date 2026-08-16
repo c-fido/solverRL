@@ -22,6 +22,7 @@ def test_left_policy_has_zero_exact_success(mdp: ExactMDP):
     assert success_within_horizon(mdp, policy) == pytest.approx(0.0)
 
 
+@pytest.mark.integration
 def test_greedy_policy_from_model_shape(mdp: ExactMDP):
     model = build_ppo(n_envs=2, seed=0)
     policy = greedy_policy_from_model(model, mdp)
@@ -33,6 +34,7 @@ def test_greedy_policy_from_model_shape(mdp: ExactMDP):
     model.env.close()
 
 
+@pytest.mark.integration
 def test_train_r1_stops_and_saves_when_threshold_met(tmp_path: Path, mdp: ExactMDP):
     # threshold=0.0 ⇒ stop after the first eval (untrained greedy success ≥ 0).
     out = tmp_path / "r1.zip"

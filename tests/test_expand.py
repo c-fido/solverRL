@@ -9,7 +9,10 @@ from solverrl.exact import ExactMDP
 from solverrl.ground import ground_atoms
 from solverrl.teachers.census import build_census
 from solverrl.teachers.ppo import build_ppo
+import pytest
 import solverrl_core
+
+pytestmark = pytest.mark.integration
 
 
 def test_expand_editor_proposes_all_kinds(mdp: ExactMDP = ExactMDP.from_keydoor()):

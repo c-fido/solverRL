@@ -38,6 +38,7 @@ def test_audit_fails_on_kl_spike_and_entropy_collapse():
     assert "entropy_collapse" in report.failures
 
 
+@pytest.mark.integration
 def test_short_train_records_telemetry_and_audits(tmp_path: Path):
     trace, report = record_telemetry_during_train(
         total_timesteps=2048,

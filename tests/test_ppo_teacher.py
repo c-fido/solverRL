@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import torch
 import torch.nn as nn
 
 from solverrl.teachers.ppo import build_ppo, train_ppo
+
+pytestmark = pytest.mark.integration
 
 
 def test_build_ppo_uses_tanh_two_layer_mlp():

@@ -247,6 +247,26 @@ PYBIND11_MODULE(solverrl_core, m) {
   py::class_<solverrl::RuleLearner>(m, "RuleLearner")
       .def_static("keydoor", &solverrl::RuleLearner::keydoor, py::arg("min_score") = 1e-12,
                   py::arg("max_body_literals") = 3)
+      .def_static(
+          "from_schema",
+          [](int n_atoms, int n_actions, const std::vector<std::string>& atom_names,
+             const std::vector<std::string>& action_names, double min_score, int max_body_literals) {
+            if (static_cast<int>(atom_names.size()) != n_atoms) {
+              throw std::invalid_argument("from_schema: atom_names length must equal n_atoms");
+            }
+            if (static_cast<int>(action_names.size()) != n_actions) {
+              throw std::invalid_argument("from_schema: action_names length must equal n_actions");
+            }
+            solverrl::EmitConfig cfg;
+            cfg.action_names = action_names;
+            for (const auto& name : atom_names) {
+              cfg.atoms.push_back(solverrl::AtomSchema{name, {}, false, ""});
+            }
+            return solverrl::RuleLearner(n_atoms, n_actions, std::move(cfg), min_score,
+                                         max_body_literals);
+          },
+          py::arg("n_atoms"), py::arg("n_actions"), py::arg("atom_names"), py::arg("action_names"),
+          py::arg("min_score") = 1e-12, py::arg("max_body_literals") = 3)
       .def(
           "fit",
           [](solverrl::RuleLearner& self, py::array atoms, py::array actions,

@@ -5,3 +5,5 @@ matplotlib==3.10.7
 pybind11==3.0.1
 torch==2.9.1
 pytest==8.4.2
+minigrid>=2.3.0
+scikit-learn>=1.3.0

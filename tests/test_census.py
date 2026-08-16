@@ -18,6 +18,8 @@ from solverrl.teachers.census import (
 )
 from solverrl.teachers.ppo import build_ppo
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture(scope="module")
 def mdp() -> ExactMDP:
