@@ -2,7 +2,9 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include <cstdint>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 #include "solverrl/exact_eval.hpp"
@@ -14,6 +16,31 @@
 namespace py = pybind11;
 
 namespace {
+
+// NumPy's fixed-width int64 often uses format 'q' while C++ int64_t is 'l' on
+// Linux LP64 — format_descriptor matching then rejects valid int64 arrays.
+std::vector<int> ints_from_numpy_1d(py::array arr, const char* what) {
+  if (arr.ndim() != 1) {
+    throw std::invalid_argument(std::string(what) + " must be 1-D");
+  }
+  const int n = static_cast<int>(arr.shape(0));
+  std::vector<int> out(static_cast<std::size_t>(n));
+  const auto req = arr.request();
+  if (static_cast<std::size_t>(req.itemsize) == sizeof(std::int64_t)) {
+    const auto* p = static_cast<const std::int64_t*>(req.ptr);
+    for (int i = 0; i < n; ++i) {
+      out[static_cast<std::size_t>(i)] = static_cast<int>(p[i]);
+    }
+  } else if (static_cast<std::size_t>(req.itemsize) == sizeof(std::int32_t)) {
+    const auto* p = static_cast<const std::int32_t*>(req.ptr);
+    for (int i = 0; i < n; ++i) {
+      out[static_cast<std::size_t>(i)] = static_cast<int>(p[i]);
+    }
+  } else {
+    throw std::invalid_argument(std::string(what) + " must be int64 or int32");
+  }
+  return out;
+}
 
 std::vector<solverrl::Example> examples_from_numpy(py::array atoms, py::array actions,
                                                    py::object weights) {
@@ -30,27 +57,13 @@ std::vector<solverrl::Example> examples_from_numpy(py::array atoms, py::array ac
   }
 
   auto atoms_req = atoms.request();
-  auto actions_req = actions.request();
   std::vector<bool> flat(static_cast<std::size_t>(n_states * n_atoms));
   const auto* atoms_ptr = static_cast<const uint8_t*>(atoms_req.ptr);
   for (std::size_t i = 0; i < flat.size(); ++i) {
     flat[i] = atoms_ptr[i] != 0;
   }
 
-  std::vector<int> acts(static_cast<std::size_t>(n_states));
-  if (actions_req.format == py::format_descriptor<int64_t>::format()) {
-    const auto* p = static_cast<const int64_t*>(actions_req.ptr);
-    for (int i = 0; i < n_states; ++i) {
-      acts[static_cast<std::size_t>(i)] = static_cast<int>(p[i]);
-    }
-  } else if (actions_req.format == py::format_descriptor<int32_t>::format()) {
-    const auto* p = static_cast<const int32_t*>(actions_req.ptr);
-    for (int i = 0; i < n_states; ++i) {
-      acts[static_cast<std::size_t>(i)] = p[i];
-    }
-  } else {
-    throw std::invalid_argument("actions must be int64 or int32");
-  }
+  std::vector<int> acts = ints_from_numpy_1d(actions, "actions");
 
   std::vector<double> w;
   const double* w_ptr = nullptr;
@@ -97,26 +110,7 @@ py::array ground_keydoor_states(py::array states) {
 }
 
 std::vector<int> policy_from_numpy(py::array policy) {
-  if (policy.ndim() != 1) {
-    throw std::invalid_argument("policy must be 1-D (n_states,)");
-  }
-  const int n = static_cast<int>(policy.shape(0));
-  std::vector<int> out(static_cast<std::size_t>(n));
-  const auto req = policy.request();
-  if (req.format == py::format_descriptor<int64_t>::format()) {
-    const auto* p = static_cast<const int64_t*>(req.ptr);
-    for (int i = 0; i < n; ++i) {
-      out[static_cast<std::size_t>(i)] = static_cast<int>(p[i]);
-    }
-  } else if (req.format == py::format_descriptor<int32_t>::format()) {
-    const auto* p = static_cast<const int32_t*>(req.ptr);
-    for (int i = 0; i < n; ++i) {
-      out[static_cast<std::size_t>(i)] = p[i];
-    }
-  } else {
-    throw std::invalid_argument("policy must be int64 or int32");
-  }
-  return out;
+  return ints_from_numpy_1d(policy, "policy");
 }
 
 solverrl::ExactEvaluator exact_evaluator_from_numpy(py::array transition, py::array reward,

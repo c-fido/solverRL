@@ -3,6 +3,8 @@ project(solverrl_core LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# Static libs are linked into the pybind11 shared module; Linux needs -fPIC.
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 enable_testing()
 
 include(FetchContent)
